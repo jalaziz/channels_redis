@@ -103,7 +103,8 @@ class ConnectionPool:
         """
         Return a connection to the pool.
         """
-        loop = self.in_use.pop(conn, None)
+        loop = self.in_use[conn]
+        del self.in_use[conn]
         if loop is not None:
             conns, _ = self._ensure_loop(loop)
             conns.append(conn)
@@ -113,7 +114,7 @@ class ConnectionPool:
         Handle a connection that produced an error.
         """
         await self._close_conn(conn)
-        self.in_use.pop(conn, None)
+        del self.in_use[conn]
 
     def reset(self):
         """
@@ -142,10 +143,10 @@ class ConnectionPool:
                 await self._close_conn(conn)
             del self.conn_map[loop]
 
-        for k, v in list(self.in_use.items()):
+        for k, v in self.in_use.items():
             if v is loop:
                 await self._close_conn(k)
-                self.in_use.pop(k, None)
+                self.in_use[k] = None
 
     async def close(self):
         """
