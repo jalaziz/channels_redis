@@ -88,14 +88,18 @@ class ConnectionPool:
         """
         Get a connection for the given identifier and loop.
         """
+        print(f'ConnectionPool.pop: loop={id(loop)}')
         conns, loop = self._ensure_loop(loop)
         if not conns:
             conn = await self.create_conn(loop)
             conns.append(conn)
         conn = conns.pop()
         if conn.closed:
+            print(f'ConnectionPool.pop: closed loop={id(loop)}, conn={id(conn)}')
             conn = await self.pop(loop=loop)
+            print(f'ConnectionPool.pop: popped loop={id(loop)}, conn={id(conn)}')
             return conn
+        print(f'ConnectionPool.pop: loop={id(loop)} conn={id(conn)}')
         self.in_use[conn] = loop
         return conn
 
@@ -103,7 +107,9 @@ class ConnectionPool:
         """
         Return a connection to the pool.
         """
+        print(f'ConnectionPool.push: conn={id(conn)}')
         loop = self.in_use[conn]
+        print(f'ConnectionPool.push: loop={id(loop)}')
         del self.in_use[conn]
         if loop is not None:
             conns, _ = self._ensure_loop(loop)
@@ -113,7 +119,9 @@ class ConnectionPool:
         """
         Handle a connection that produced an error.
         """
+        print(f'ConnectionPool.conn_error: conn={id(conn)}')
         await self._close_conn(conn)
+        print(f'ConnectionPool.conn_error: delete conn={id(conn)}')
         del self.in_use[conn]
 
     def reset(self):
@@ -138,15 +146,21 @@ class ConnectionPool:
         """
         Close all connections owned by the pool on the given loop.
         """
+        print(f'ConnectionPool.close_loop: loop={id(loop)}')
         if loop in self.conn_map:
             for conn in self.conn_map[loop]:
                 await self._close_conn(conn)
             del self.conn_map[loop]
 
+        print(f'ConnectionPool.close_loop: closing connections loop={id(loop)}')
         for k, v in self.in_use.items():
             if v is loop:
+                print(f'ConnectionPool.close_loop: closing loop={id(loop)}, conn={id(k)}')
                 await self._close_conn(k)
+                print(f'ConnectionPool.close_loop: closed loop={id(loop)}, conn={id(k)}')
                 self.in_use[k] = None
+                print(f'ConnectionPool.close_loop: removed loop={id(loop)}, conn={id(k)}')
+        print(f'ConnectionPool.close_loop: complete loop={id(loop)}')
 
     async def close(self):
         """
@@ -160,6 +174,7 @@ class ConnectionPool:
             for conn in conns:
                 await self._close_conn(conn, sentinel_map)
         for conn in in_use:
+            print(f'ConnectionPool.close: conn={id(conn)}')
             await self._close_conn(conn, sentinel_map)
 
 
